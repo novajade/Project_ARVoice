@@ -81,6 +81,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUESTS = 1;
     public Boolean loadingDone = false;
     public static Boolean faceSuccess = false;
+    public static Boolean faceTrans = false;
 
     //THREAD
     findface findFace = new findface();
@@ -98,17 +99,11 @@ public class HelloSceneformActivity extends AppCompatActivity {
     private ImageButton button2;
     private ImageButton button3;
 
-    private String a = "abc";
+    private String voicestring = "NULL";
+    private String Finalvoicestring = "NULL";
     private TextView mTextView;
-    private TextView mTextView2;
-    private TextView mTextView3;
-    float FacePointX;
-    float FacePointY;
-    float FacePlusX;
-    float FacePlusY;
-
-
-
+  
+  
     @BindView(R.id.status)
     TextView status;
     @BindView(R.id.textMessage)
@@ -158,15 +153,14 @@ public class HelloSceneformActivity extends AppCompatActivity {
                                 onClear();
                                 rend(a, bubbleflag);
                             }
+                            onClear();
                             textMessage.setText(null);
                             stringList.add(0,text);
                             adapter.notifyDataSetChanged();
-
+                            Finalvoicestring = voicestring;
                         }
                         else{
-                            //onClear();
-                            a = text;
-
+                            voicestring = text;
                             textMessage.setText(text);
                         }
                     }
@@ -181,28 +175,38 @@ public class HelloSceneformActivity extends AppCompatActivity {
   // FutureReturnValueIgnored is not valid
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
-
+    
+    //권한 설정
+    if (isGrantedPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+      startVoiceRecorder();
+    }
+    else {
+      makeRequest(android.Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA);
+    }
     if (!checkIsSupportedDeviceOrFinish(this)) {
       return;
     }
-
-        mTextView = (TextView) findViewById(R.id.bubble1);
+    
+    //음성인식 중에 있는 텍스트들이 들어갈 텍스트뷰
+    mTextView = (TextView) findViewById(R.id.bubble1);
 
     setContentView(R.layout.activity_ux);
     arFragment = (ArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
     arSceneView = arFragment.getArSceneView();
+    
+    //arCore sceneform 에 있는 바닥 인식 부분을 없애주는 코드
+    arFragment.getPlaneDiscoveryController().hide();
+    arFragment.getPlaneDiscoveryController().setInstructionView(null);
+    arSceneView.getPlaneRenderer().setEnabled(false);
 
-      arFragment.getPlaneDiscoveryController().hide();
-      arFragment.getPlaneDiscoveryController().setInstructionView(null);
-      arSceneView.getPlaneRenderer().setEnabled(false);
-
-        //Sppech
+        //Sppech 에 필요한 class객체와 변수들을 선언
         ButterKnife.bind(this);
         speechAPI = new SpeechAPI(HelloSceneformActivity.this);
         stringList = new ArrayList<>();
         adapter = new ArrayAdapter(this, android.R.layout.simple_list_item_1, stringList);
         listView.setAdapter(adapter);
 
+        //말풍선 종류를 바꿔주는 버튼들을 선언하고 설정
         button1 = (ImageButton)findViewById(R.id.bbutton1);
         button2 = (ImageButton)findViewById(R.id.bbutton2);
         button3 = (ImageButton)findViewById(R.id.bbutton3);
@@ -232,6 +236,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
             }
         });
       }
+  
     @Override
     protected void onStart() {
         super.onStart();
@@ -271,12 +276,13 @@ public class HelloSceneformActivity extends AppCompatActivity {
         face_thread_runnable.destroy();
         super.onStop();
     }
-
+  
+    //앱 실행 시 권한을 받고 제대로 실행되기 전까지 로딩상태를 알려주는 class
     class UI_Task extends AsyncTask<Void, Void, Void> {
         @Override
         protected Void doInBackground(Void... voids) {
             try {
-                Thread.sleep(5000);
+                Thread.sleep(3000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             };
@@ -296,10 +302,12 @@ public class HelloSceneformActivity extends AppCompatActivity {
         }
     }
 
+    //clear버튼 클릭 시
     public void onClearButtonClicked(View v){
       onClear();
     }
-
+  
+    //뷰를 렌더링 해주는 함수
     public void rend(String a, int bubbleflag){
         if(bubbleflag == 0) {
             ViewRenderable.builder()
@@ -311,31 +319,32 @@ public class HelloSceneformActivity extends AppCompatActivity {
                                 textViewRenderable = renderable;
 
                                 if (textViewRenderable != null) {
-                                    FacePlusY = findFace.FacePlusY;
-                                    FacePointX = (float) (findFace.FaceCenterX*2.25); // + FacePlusX;
-                                    FacePointY = (float) (findFace.FaceY*2960/480) -4*FacePlusY;
-                                    float[] touchArray = new float[]{FacePointX, FacePointY};
                                     float objectDistanceFromCamera = -1.0f;
-                                    float[] normalizedMetersArr = getNormalizedScreenCoordinates(touchArray, arSceneView.getWidth(), arSceneView.getHeight(), objectDistanceFromCamera);
-                                    Log.d(TAG, "width: "+arSceneView.getWidth() + " , "+arSceneView.getHeight());
 
-                                    Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(normalizedMetersArr[0], normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
+                                    Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(findface.normalizedMetersArr[0], findface.normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
                                     Anchor anchor = mSession.createAnchor(inAirPose);
 
-                                    // Create the Anchor.
-                                    //com.google.ar.core.Pose.makeTranslation(0, 0.5f, 0).compose(hitResult.getHitPose());
-                                    //Anchor anchor = hitResult.createAnchor();
                                     AnchorNode anchorNode = new AnchorNode(anchor);
                                     anchorNode.setParent(arSceneView.getScene());
+
 
                                     // Create the transformable andy and add it to the anchor.
                                     FootprintSelectionVisualizer footprintSelectionVisualizer = (FootprintSelectionVisualizer)arFragment.getTransformationSystem().getSelectionVisualizer();
                                     TransformableNode andy = new TransformableNode(arFragment.getTransformationSystem());
                                     footprintSelectionVisualizer.removeSelectionVisual(andy);
+
+
+                                    Camera camera = arSceneView.getScene().getCamera();
+                                    Vector3 forward = camera.getForward();
+                                    Vector3 cameraposition = camera.getWorldPosition();
+                                    Vector3 position = Vector3.add(cameraposition,forward);
+                                    Vector3 direction = Vector3.subtract(cameraposition, position);
+                                    direction.y = position.y;
+
                                     andy.setParent(anchorNode);
                                     andy.setRenderable(textViewRenderable);
-                                    //andy.setLookDirection(direction);
-                                    //andy.select();
+
+                                    andy.setLookDirection(direction);
                                 }
                             }
                     );
@@ -348,34 +357,34 @@ public class HelloSceneformActivity extends AppCompatActivity {
                                 mTextView2 = renderable.getView().findViewById(R.id.bubble2);
                                 mTextView2.setText(a);
                                 textViewRenderable = renderable;
-                                mSession = arSceneView.getSession();
-                                Frame mFrame = arSceneView.getArFrame();
-                        findface findFace = new findface();
-                        findFace.findFace(mFrame);
+                      
+                           if (textViewRenderable != null) {
+                                    float objectDistanceFromCamera = -1.0f;
 
-                        if (textViewRenderable != null) {
-                            Log.d(TAG, "얼굴 인식 후 얼굴의 좌표 : (" + findFace.FaceX + ", " + findFace.FaceX + ")");
-                            FacePlusY = findFace.FacePlusY;
-                            FacePointX = (float) (findFace.FaceCenterX*2.25); // + FacePlusX;
-                            FacePointY = (float) (findFace.FaceY*2960/480) -4*FacePlusY;
-                            float[] touchArray = new float[]{FacePointX, FacePointY};
-                            float objectDistanceFromCamera = -1.0f;
-                            float[] normalizedMetersArr = getNormalizedScreenCoordinates(touchArray, arSceneView.getWidth(), arSceneView.getHeight(), objectDistanceFromCamera);
-
-                            Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(normalizedMetersArr[0], normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
-                            Anchor anchor = mSession.createAnchor(inAirPose);
+                                    Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(findface.normalizedMetersArr[0], findface.normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
+                                    Anchor anchor = mSession.createAnchor(inAirPose);
 
                                     AnchorNode anchorNode = new AnchorNode(anchor);
                                     anchorNode.setParent(arSceneView.getScene());
+
 
                                     // Create the transformable andy and add it to the anchor.
                                     FootprintSelectionVisualizer footprintSelectionVisualizer = (FootprintSelectionVisualizer)arFragment.getTransformationSystem().getSelectionVisualizer();
                                     TransformableNode andy = new TransformableNode(arFragment.getTransformationSystem());
                                     footprintSelectionVisualizer.removeSelectionVisual(andy);
+
+
+                                    Camera camera = arSceneView.getScene().getCamera();
+                                    Vector3 forward = camera.getForward();
+                                    Vector3 cameraposition = camera.getWorldPosition();
+                                    Vector3 position = Vector3.add(cameraposition,forward);
+                                    Vector3 direction = Vector3.subtract(cameraposition, position);
+                                    direction.y = position.y;
+
                                     andy.setParent(anchorNode);
                                     andy.setRenderable(textViewRenderable);
-                                    //andy.setLookDirection(direction);
-                                    //andy.select();
+
+                                    andy.setLookDirection(direction);
                                 }
                             }
                     );
@@ -388,34 +397,34 @@ public class HelloSceneformActivity extends AppCompatActivity {
                                 mTextView3 = renderable.getView().findViewById(R.id.bubble3);
                                 mTextView3.setText(a);
                                 textViewRenderable = renderable;
-                                mSession = arSceneView.getSession();
-                                Frame mFrame = arSceneView.getArFrame();
-                        findface findFace = new findface();
-                        findFace.findFace(mFrame);
-
+                      
                         if (textViewRenderable != null) {
-                            Log.d(TAG, "얼굴 인식 후 얼굴의 좌표 : (" + findFace.FaceX + ", " + findFace.FaceX + ")");
-                            FacePlusY = findFace.FacePlusY;
-                            FacePointX = (float) (findFace.FaceCenterX*2.25); // + FacePlusX;
-                            FacePointY = (float) (findFace.FaceY*2960/480) -4*FacePlusY;
-                            float[] touchArray = new float[]{FacePointX, FacePointY};
-                            float objectDistanceFromCamera = -1.0f;
-                            float[] normalizedMetersArr = getNormalizedScreenCoordinates(touchArray, arSceneView.getWidth(), arSceneView.getHeight(), objectDistanceFromCamera);
+                                    float objectDistanceFromCamera = -1.0f;
 
-                            Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(normalizedMetersArr[0], normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
-                            Anchor anchor = mSession.createAnchor(inAirPose);
+                                    Pose inAirPose = mFrame.getAndroidSensorPose().compose(Pose.makeTranslation(findface.normalizedMetersArr[0], findface.normalizedMetersArr[1], objectDistanceFromCamera)).extractTranslation();
+                                    Anchor anchor = mSession.createAnchor(inAirPose);
 
                                     AnchorNode anchorNode = new AnchorNode(anchor);
                                     anchorNode.setParent(arSceneView.getScene());
+
 
                                     // Create the transformable andy and add it to the anchor.
                                     FootprintSelectionVisualizer footprintSelectionVisualizer = (FootprintSelectionVisualizer)arFragment.getTransformationSystem().getSelectionVisualizer();
                                     TransformableNode andy = new TransformableNode(arFragment.getTransformationSystem());
                                     footprintSelectionVisualizer.removeSelectionVisual(andy);
+
+
+                                    Camera camera = arSceneView.getScene().getCamera();
+                                    Vector3 forward = camera.getForward();
+                                    Vector3 cameraposition = camera.getWorldPosition();
+                                    Vector3 position = Vector3.add(cameraposition,forward);
+                                    Vector3 direction = Vector3.subtract(cameraposition, position);
+                                    direction.y = position.y;
+
                                     andy.setParent(anchorNode);
                                     andy.setRenderable(textViewRenderable);
-                                    //andy.setLookDirection(direction);
-                                   // andy.select();
+
+                                    andy.setLookDirection(direction);
                                 }
                             }
                     );
@@ -503,35 +512,7 @@ public class HelloSceneformActivity extends AppCompatActivity {
             }
         }
     }
-    private float [] getNormalizedScreenCoordinates(float[] vec2, int screenWidth, int screenHeight, float metersAway){
-        if(vec2 == null || vec2.length != 2) return null;
-
-        float [] normalizedTouch = new float[]{vec2[0]/screenWidth, vec2[1]/screenHeight};
-        float screenWidthInTranslationMeters = 0.37f; //range is [-0.37,0.37]
-        float screenHeightInTranslationMeters = 0.675f; //range is [-0.615, 0.615]
-
-        float normalizedAwayFromCenterX;
-        float normalizedMetersAwayFromCenterX;
-        if(normalizedTouch[0] >= 0.5f){
-            normalizedAwayFromCenterX = (float) ((1.0 - 0.0) / (1.0 - 0.5f) * (normalizedTouch[0] - 1.0f) + 1.0f);
-        }else{
-            normalizedAwayFromCenterX = (float) ((0.0 + 1.0) / (0.5f - 0f) * (normalizedTouch[0] - 1.0f) + 1.0f);
-        }
-        normalizedMetersAwayFromCenterX = normalizedAwayFromCenterX * screenWidthInTranslationMeters * Math.abs(metersAway);
-
-
-        float normalizedAwayFromCenterY ;
-        float normalizedMetersAwayFromCenterY;
-        if((1-normalizedTouch[1]) < 0.5f){
-            normalizedAwayFromCenterY = (float) ((1.0 - 0.0) / (1.0 - 0.5f) * ((1 - normalizedTouch[1]) - 1.0f) + 1.0f);
-        }else{
-            normalizedAwayFromCenterY = (float) ((0.0 + 1.0) / (0.5f - 0f) * ((1 - normalizedTouch[1]) - 1.0f) + 1.0f);
-        }
-        normalizedMetersAwayFromCenterY = normalizedAwayFromCenterY * screenHeightInTranslationMeters * Math.abs(metersAway);
-
-        return new float[]{normalizedMetersAwayFromCenterX, normalizedMetersAwayFromCenterY};
-    }
-
+    
     //==============얼굴인식 쓰레드===================
     class Face_Thread_Runnable extends Thread {
         @Override
@@ -551,27 +532,20 @@ public class HelloSceneformActivity extends AppCompatActivity {
                     {
                         arSceneView = arFragment.getArSceneView();
                         mSession = arSceneView.getSession();
+                        Config config = arSceneView.getSession().getConfig();
+                        config.setUpdateMode(Config.UpdateMode.LATEST_CAMERA_IMAGE);
                         mFrame = arSceneView.getArFrame();
                         findFace.findFace(mFrame);
-                        if했으면
-                                clear
-                                anchor airpose 새로운좌표
-                                rend
-
+                        Log.d(TAG, "얼굴 바뀜" + faceTrans);
+                        if(faceSuccess == true && arSceneView.getScene().getChildren() != null && faceTrans == true){
+                            faceTrans = false;
+                            if(Finalvoicestring != "NULL") {//미리 비어있는 버블창 생성 방지
+                                onClear();
+                                rend(Finalvoicestring, bubbleflag);
+                            }
                     }
                 }
             });
         }
     };
-
-    private static boolean isPermissionGranted(Context context, String permission) {
-        if (ContextCompat.checkSelfPermission(context, permission)
-                == PackageManager.PERMISSION_GRANTED) {
-            Log.i(TAG, "Permission granted: " + permission);
-            return true;
-        }
-        Log.i(TAG, "Permission NOT granted: " + permission);
-        return false;
-    }
-
 }
