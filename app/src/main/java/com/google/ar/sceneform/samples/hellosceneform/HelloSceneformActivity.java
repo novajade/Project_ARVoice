@@ -537,15 +537,19 @@ public class HelloSceneformActivity extends AppCompatActivity {
                         mFrame = arSceneView.getArFrame();
                         findFace.findFace(mFrame);
                         Log.d(TAG, "얼굴 바뀜" + faceTrans);
-                        if(faceSuccess == true && arSceneView.getScene().getChildren() != null && faceTrans == true){
+                        if(faceSuccess == true && arSceneView
+                           .getScene()
+                           .getChildren() != null && faceTrans == true)
+                        {
                             faceTrans = false;
-                            if(Finalvoicestring != "NULL") {//미리 비어있는 버블창 생성 방지
+                            if(Finalvoicestring != "NULL")//미리 비어있는 버블창 생성 방지
+                            {
                                 onClear();
                                 rend(Finalvoicestring, bubbleflag);
                             }
+                        }
                     }
-                }
-            });
-        }
-    };
+                });
+            }
+        };
 }
