@@ -33,8 +33,13 @@ public class findface {
     public static float FaceY;
     public Boolean isFace = false;
     Frame returnFrame;
+    public static float[] normalizedMetersArr;
     public static float FaceCenterX;
     public static float FacePlusY;
+    public static float FacePointX;
+    public static float FacePointY;
+    public static float PastFacePointX;
+    public static float PastFacePointY;
 
 
     public void findFace(Frame mFrame){
@@ -105,11 +110,28 @@ public class findface {
                                     FaceCenterX = face.getBoundingBox().exactCenterX();
                                     FacePlusY = (float)face.getBoundingBox().top;
                                     FaceY = face.getBoundingBox().centerY();
+                                    
+                                    FacePointX = (float) (FaceCenterX*2.25); // + FacePlusX;
+                                    FacePointY = (float) (FaceY*2960/480) -4*FacePlusY;
+                                    float[] touchArray = new float[]{FacePointX, FacePointY};
+                                    float objectDistanceFromCamera = -1.0f;
+                                    normalizedMetersArr = getNormalizedScreenCoordinates(touchArray, 1440, 2960, objectDistanceFromCamera);
+
+                                    float DiffX = FaceX - PastFacePointX;
+                                    float DiffY = FaceY - PastFacePointY;
+                                    Log.d(TAG,"바뀐 DiffX : "+DiffX);
+                                    Log.d(TAG, "바뀐 DiffY : "+DiffY);
+                                    if((Math.abs(DiffX) > 10) || (Math.abs(DiffY) > 10))
+                                        HelloSceneformActivity.faceTrans = true;
+
+                                    PastFacePointX = FaceX;
+                                    PastFacePointY = FaceY;
+
                                     isFace = true;
                                     HelloSceneformActivity.faceSuccess = true;
                                     Log.d(TAG, "이미지 얼굴 위치" + FaceX + " , " + FaceY);
-                                    HelloSceneformActivity.LOCK = false;
                                 }
+                                HelloSceneformActivity.LOCK = false;
                             }
                         })
                 .addOnFailureListener(
@@ -123,9 +145,37 @@ public class findface {
                             }
                         });
     }
-    public float findxy(){
-        return 0;
+    
+    
+    private float [] getNormalizedScreenCoordinates(float[] vec2, int screenWidth, int screenHeight, float metersAway){
+        if(vec2 == null || vec2.length != 2) return null;
+
+        float [] normalizedTouch = new float[]{vec2[0]/screenWidth, vec2[1]/screenHeight};
+        float screenWidthInTranslationMeters = 0.37f; //range is [-0.37,0.37]
+        float screenHeightInTranslationMeters = 0.675f; //range is [-0.615, 0.615]
+
+        float normalizedAwayFromCenterX;
+        float normalizedMetersAwayFromCenterX;
+        if(normalizedTouch[0] >= 0.5f){
+            normalizedAwayFromCenterX = (float) ((1.0 - 0.0) / (1.0 - 0.5f) * (normalizedTouch[0] - 1.0f) + 1.0f);
+        }else{
+            normalizedAwayFromCenterX = (float) ((0.0 + 1.0) / (0.5f - 0f) * (normalizedTouch[0] - 1.0f) + 1.0f);
+        }
+        normalizedMetersAwayFromCenterX = normalizedAwayFromCenterX * screenWidthInTranslationMeters * Math.abs(metersAway);
+
+
+        float normalizedAwayFromCenterY ;
+        float normalizedMetersAwayFromCenterY;
+        if((1-normalizedTouch[1]) < 0.5f){
+            normalizedAwayFromCenterY = (float) ((1.0 - 0.0) / (1.0 - 0.5f) * ((1 - normalizedTouch[1]) - 1.0f) + 1.0f);
+        }else{
+            normalizedAwayFromCenterY = (float) ((0.0 + 1.0) / (0.5f - 0f) * ((1 - normalizedTouch[1]) - 1.0f) + 1.0f);
+        }
+        normalizedMetersAwayFromCenterY = normalizedAwayFromCenterY * screenHeightInTranslationMeters * Math.abs(metersAway);
+
+        return new float[]{normalizedMetersAwayFromCenterX, normalizedMetersAwayFromCenterY};
     }
+    
     public Frame ReturnFrame(){
         return returnFrame;
     }
